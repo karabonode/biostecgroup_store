@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^php -l api/orders/pay\\.php$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

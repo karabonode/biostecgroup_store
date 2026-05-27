@@ -1,0 +1,122 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Fields:
+//   - uid: string (required)
+//   - email: string (required, email)
+//   - name: string
+//   - role: string (required, enum: admin, customer)
+//
+// Collection: products
+// Fields:
+//   - name: string (required)
+//   - description: string
+//   - priceCents: number (required, integer)
+//   - grade: string (required, enum: A, B)
+//   - specs: map (cpu, ram, storage)
+//   - imageUrl: string (uri)
+//   - stock: number (required, integer)
+//
+// Collection: orders
+// Fields:
+//   - userId: string (required)
+//   - items: list (productId, name, quantity, priceCents)
+//   - totalCents: number (required, integer)
+//   - status: string (required, enum: pending, paid, shipped, cancelled)
+//   - paystackReference: string
+//   - createdAt: timestamp (required)
+//
+// Collection: repairTickets
+// Fields:
+//   - userId: string (required)
+//   - customerName: string
+//   - customerEmail: string
+//   - deviceModel: string (required)
+//   - issueDescription: string (required)
+//   - status: string (required, enum: pending, in-repair, ready, collected)
+//   - createdAt: timestamp (required)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "mashigomag46@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && data.email.size() > 0 &&
+             data.role in ['admin', 'customer'];
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'priceCents', 'grade', 'stock']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.priceCents is int && data.priceCents >= 0 &&
+             data.grade in ['A', 'B'] &&
+             data.stock is int && data.stock >= 0;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['userId', 'items', 'totalCents', 'status', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.items is list &&
+             data.totalCents is int && data.totalCents >= 0 &&
+             data.status in ['pending', 'paid', 'shipped', 'cancelled'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidRepairTicket(data) {
+      return data.keys().hasAll(['userId', 'deviceModel', 'issueDescription', 'status', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.deviceModel is string && data.deviceModel.size() > 0 && data.deviceModel.size() < 100 &&
+             data.issueDescription is string && data.issueDescription.size() > 0 && data.issueDescription.size() < 1000 &&
+             data.status in ['pending', 'in-repair', 'ready', 'collected'] &&
+             data.createdAt is timestamp;
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'customer' || isAdmin());
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    // Products
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidProduct(request.resource.data);
+    }
+
+    // Orders
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update: if isAdmin(); // Only admin can update order status (e.g. to shipped)
+    }
+
+    // Repair Tickets
+    match /repairTickets/{ticketId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidRepairTicket(request.resource.data);
+      allow update: if isAdmin(); // Only admin can update repair status
+    }
+  }
+}

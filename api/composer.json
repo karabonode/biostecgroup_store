@@ -1,0 +1,7 @@
+{
+  "name": "biostecgroup/api",
+  "description": "Biostec Group API",
+  "require": {
+    "phpmailer/phpmailer": "^6.9"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mysql -u root biostec_db -e \"UPDATE products SET images = REPLACE\\(images, '/api/uploads/', '/uploads/'\\) WHERE images LIKE '%/api/uploads/%';\")",
+      "Bash(npx tsc *)",
+      "Bash(git init *)",
+      "Bash(git branch *)"
+    ]
+  }
+}

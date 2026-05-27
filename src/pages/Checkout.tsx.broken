@@ -1,0 +1,497 @@
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { CreditCard, Truck, User, Mail, Phone, MapPin, ShieldCheck, Lock } from 'lucide-react';
+import { useCartStore } from '../store/cartStore';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
+import axios from 'axios';
+
+declare global {
+  interface Window {
+    YocoSDK?: new (config: { publicKey: string }) => {
+      showPopup: (options: {
+        amountInCents: number;
+        currency: string;
+        name: string;
+        description: string;
+        customer?: {
+          firstName: string;
+          lastName: string;
+          email: string;
+          phone: string;
+        };
+        callback: (result: { id?: string; error?: { message?: string } }) => void;
+        onClose?: () => void;
+        onCancel?: () => void;
+      }) => void;
+    };
+  }
+}
+
+const YOCO_SDK_SRC = 'https://js.yoco.com/sdk/v1/yoco-sdk-web.js';
+
+interface CustomerDetails {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  province: string;
+  postalCode: string;
+}
+
+const PROVINCES = [
+  'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
+  'Free State', 'Mpumalanga', 'North West', 'Limpopo', 'Northern Cape'
+];
+
+export default function Checkout() {
+  const { items, getTotal } = useCartStore();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errors, setErrors] = useState<Partial<CustomerDetails>>({});
+    const [error, setError] = useState('');
+
+  const ensureYocoLoaded = async (): Promise<boolean> => {
+      console.log('[Yoco] Checking if SDK loaded...');
+    if (window.YocoSDK) return true;
+
+    const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${YOCO_SDK_SRC}"]`);
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+
+      const finish = (loaded: boolean) => {
+        if (settled) return;
+        settled = true;
+          console.log('[Yoco] SDK load attempt finished. Loaded:', loaded, 'YocoSDK present:', Boolean(window.YocoSDK));
+        resolve(loaded && Boolean(window.YocoSDK));
+      };
+
+        const handleLoad = () => {
+          console.log('[Yoco] SDK script load event fired');
+          finish(true);
+        };
+      
+        const handleError = () => {
+          console.error('[Yoco] SDK script load error');
+          finish(false);
+        };
+
+      if (existingScript) {
+          console.log('[Yoco] SDK script already exists, using existing');
+        existingScript.addEventListener('load', handleLoad, { once: true });
+        existingScript.addEventListener('error', handleError, { once: true });
+      } else {
+          console.log('[Yoco] Creating new SDK script');
+        const script = document.createElement('script');
+        script.src = YOCO_SDK_SRC;
+        script.async = true;
+        script.addEventListener('load', handleLoad, { once: true });
+        script.addEventListener('error', handleError, { once: true });
+        document.head.appendChild(script);
+      }
+
+        // Timeout after 8 seconds
+        setTimeout(() => {
+          console.error('[Yoco] SDK load timeout after 8 seconds');
+          finish(Boolean(window.YocoSDK));
+        }, 8000);
+    });
+  };
+  const [customerDetails, setCustomerDetails] = useState<CustomerDetails>({
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    email: user?.email || '',
+    phone: '',
+    address: '',
+    city: '',
+    province: '',
+    postalCode: ''
+  });
+
+  React.useEffect(() => {
+    if (items.length === 0) navigate('/');
+  }, [items, navigate]);
+
+  const validateForm = (): boolean => {
+    const newErrors: Partial<CustomerDetails> = {};
+    
+    if (!customerDetails.firstName.trim()) newErrors.firstName = 'Required';
+    if (!customerDetails.lastName.trim()) newErrors.lastName = 'Required';
+    if (!customerDetails.email.trim()) {
+      newErrors.email = 'Required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerDetails.email)) {
+      newErrors.email = 'Invalid email';
+    }
+    if (!customerDetails.phone.trim()) newErrors.phone = 'Required';
+    if (!customerDetails.address.trim()) newErrors.address = 'Required';
+    if (!customerDetails.city.trim()) newErrors.city = 'Required';
+    if (!customerDetails.province) newErrors.province = 'Required';
+    if (!customerDetails.postalCode.trim()) newErrors.postalCode = 'Required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    e?.preventDefault();
+      console.log('[Yoco] handleSubmit called');
+    if (!validateForm()) return;
+    
+    setIsProcessing(true);
+    let handoffToYoco = false;
+    try {
+      const subtotal = getTotal();
+      const shipping = subtotal > 500000 ? 0 : 15000;
+
+      const orderData = {
+        customer: customerDetails,
+        items: items.map(item => ({
+          productId: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.priceCents,
+          grade: item.grade
+        })),
+        totals: { subtotal, shipping, total: subtotal + shipping }
+      };
+
+        console.log('[Yoco] Sending order creation request:', orderData);
+      const response = await axios.post('/api/orders/create.php', orderData);
+        console.log('[Yoco] Order creation response:', response.data);
+      
+      if (!response.data.success) {
+        throw new Error('Failed to create order');
+      }
+
+      const sdkReady = await ensureYocoLoaded();
+        console.log('[Yoco] handleSubmit called');
+        setError('');
+    
+        console.log('[Yoco] SDK ready:', sdkReady, 'YocoSDK:', Boolean(window.YocoSDK));
+      if (!sdkReady || !window.YocoSDK) {
+        throw new Error('Yoco SDK failed to load');
+      }
+
+      const yoco = new window.YocoSDK({
+        publicKey: response.data.yoco.publicKey,
+      });
+        console.log('[Yoco] SDK instance created:', Boolean(yoco));
+
+      handoffToYoco = true;
+
+      let popupHandled = false;
+      const releaseCheckout = () => {
+        if (popupHandled) return;
+        popupHandled = true;
+        setIsProcessing(false);
+      };
+
+        console.log('[Yoco] Showing popup with config:', {
+          console.log('[Yoco] Sending order creation request');
+          amount: response.data.yoco.amountInCents,
+          console.log('[Yoco] Order creation response:', response.data);
+          currency: 'ZAR',
+          name: 'Biostec Group',
+            throw new Error('Failed to create order: ' + (response.data.error || 'Unknown error'));
+        });
+      yoco.showPopup({
+          console.log('[Yoco] Ensuring SDK is loaded...');
+        amountInCents: response.data.yoco.amountInCents,
+          console.log('[Yoco] SDK ready:', sdkReady, 'YocoSDK:', Boolean(window.YocoSDK));
+      
+        currency: 'ZAR',
+            throw new Error('Yoco SDK failed to load. Check browser console for network errors.');
+        description: `Order ${response.data.order_number}`,
+        customer: {
+          console.log('[Yoco] Creating SDK instance...');
+          firstName: customerDetails.firstName,
+          lastName: customerDetails.lastName,
+          email: customerDetails.email,
+          console.log('[Yoco] SDK instance created');
+          phone: customerDetails.phone,
+        },
+        onClose: releaseCheckout,
+        onCancel: releaseCheckout,
+        callback: async (result) => {
+          if (result.error) {
+            releaseCheckout();
+            alert(result.error.message || 'Payment was not completed.');
+            return;
+          }
+          console.log('[Yoco] Calling showPopup...');
+
+          if (!result.id) {
+            releaseCheckout();
+            alert('No payment token returned by Yoco. Please try again.');
+            return;
+          }
+
+          popupHandled = true;
+
+          try {
+            const payResponse = await axios.post('/api/orders/pay.php', {
+            onClose: () => {
+              console.log('[Yoco] Popup closed');
+              releaseCheckout();
+            },
+            onCancel: () => {
+              console.log('[Yoco] Popup cancelled');
+              releaseCheckout();
+            },
+            });
+              console.log('[Yoco] Token received, processing payment...');
+
+                console.error('[Yoco] Payment error:', result.error);
+            if (payResponse.data.success) {
+                setError(result.error.message || 'Payment was not completed.');
+              return;
+            }
+
+            throw new Error('Payment failed');
+                console.error('[Yoco] No token in result');
+          } catch (paymentError: any) {
+                setError('No payment token returned by Yoco. Please try again.');
+            const gatewayError = paymentError?.response?.data?.error || 'Payment failed. Please try a different card.';
+            alert(gatewayError);
+          }
+        },
+      });
+    } catch (error) {
+      console.error('Checkout error:', error);
+        console.error('[Yoco] Full error details:', error);
+      alert('Error processing order. Please try again.');
+      setIsProcessing(false);
+    } finally {
+                console.log('[Yoco] Payment response:', payResponse.data);
+
+      if (!handoffToYoco) {
+                  console.log('[Yoco] Payment successful!');
+        setIsProcessing(false);
+      }
+    }
+  };
+                throw new Error(payResponse.data.error || 'Payment failed');
+  const subtotal = getTotal();
+                console.error('[Yoco] Payment error:', paymentError);
+  const shipping = subtotal > 500000 ? 0 : 15000;
+                const gatewayError = paymentError?.response?.data?.error || paymentError.message || 'Payment failed. Please try a different card.';
+                setError(gatewayError);
+  if (items.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Your cart is empty</h2>
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+          setError(errorMsg);
+          <Link to="/products" className="px-6 py-3 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700">
+                  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+                    e?.preventDefault();
+                    console.log('[Yoco] handleSubmit called');
+                    setError('');
+    
+                    if (!validateForm()) {
+                      console.log('[Yoco] Form validation failed');
+                      return;
+                    }
+                  <div>
+                    setIsProcessing(true);
+                    let handoffToYoco = false;
+                    try {
+                      const subtotal = getTotal();
+                      const shipping = subtotal > 500000 ? 0 : 15000;
+                      const orderData = {
+                        customer: customerDetails,
+                        items: items.map(item => ({
+                          productId: item.id,
+                          name: item.name,
+                          quantity: item.quantity,
+                          price: item.priceCents,
+                          grade: item.grade
+                        })),
+                        totals: { subtotal, shipping, total: subtotal + shipping }
+                      };
+                      console.log('[Yoco] Sending order creation request');
+                      const response = await axios.post('/api/orders/create.php', orderData);
+                      console.log('[Yoco] Order creation response:', response.data);
+      
+                      if (!response.data.success) {
+                        throw new Error('Failed to create order: ' + (response.data.error || 'Unknown error'));
+                      }
+                      console.log('[Yoco] Ensuring SDK is loaded...');
+                      const sdkReady = await ensureYocoLoaded();
+                      console.log('[Yoco] SDK ready:', sdkReady, 'YocoSDK:', Boolean(window.YocoSDK));
+                      if (!sdkReady || !window.YocoSDK) {
+                        throw new Error('Yoco SDK failed to load. Check browser console for network errors.');
+                      }
+                      console.log('[Yoco] Creating SDK instance...');
+                      const yoco = new window.YocoSDK({
+                        publicKey: response.data.yoco.publicKey,
+                      });
+                      console.log('[Yoco] SDK instance created');
+                      handoffToYoco = true;
+                      let popupHandled = false;
+                      const releaseCheckout = () => {
+                        if (popupHandled) return;
+                        popupHandled = true;
+                        setIsProcessing(false);
+                      };
+                      console.log('[Yoco] Calling showPopup...');
+                      yoco.showPopup({
+                        amountInCents: response.data.yoco.amountInCents,
+                        currency: 'ZAR',
+                        name: 'Biostec Group',
+                        description: `Order ${response.data.order_number}`,
+                        customer: {
+                          firstName: customerDetails.firstName,
+                          lastName: customerDetails.lastName,
+                          email: customerDetails.email,
+                          phone: customerDetails.phone,
+                        },
+                        onClose: () => {
+                          console.log('[Yoco] Popup closed');
+                          releaseCheckout();
+                        },
+                        onCancel: () => {
+                          console.log('[Yoco] Popup cancelled');
+                          releaseCheckout();
+                        },
+                        callback: async (result) => {
+                          console.log('[Yoco] Callback received', result.error ? 'with error' : 'with token');
+                          if (result.error) {
+                            console.error('[Yoco] Payment error:', result.error);
+                            releaseCheckout();
+                            setError(result.error.message || 'Payment was not completed.');
+                            return;
+                          }
+                          if (!result.id) {
+                            console.error('[Yoco] No token in result');
+                            releaseCheckout();
+                            setError('No payment token returned by Yoco. Please try again.');
+                            return;
+                          }
+                          console.log('[Yoco] Token received, processing payment...');
+                          popupHandled = true;
+                          try {
+                            const payResponse = await axios.post('/api/orders/pay.php', {
+                              order_number: response.data.order_number,
+                              token_id: result.id,
+                            });
+                            console.log('[Yoco] Payment response:', payResponse.data);
+                            if (payResponse.data.success) {
+                              console.log('[Yoco] Payment successful!');
+                              navigate(`/checkout/success?order=${response.data.order_number}`);
+                              return;
+                            }
+                            throw new Error(payResponse.data.error || 'Payment failed');
+                          } catch (paymentError: any) {
+                            console.error('[Yoco] Payment error:', paymentError);
+                            setIsProcessing(false);
+                            const gatewayError = paymentError?.response?.data?.error || paymentError.message || 'Payment failed. Please try a different card.';
+                            setError(gatewayError);
+                          }
+                        },
+                      });
+                    } catch (error) {
+                      console.error('[Yoco] Checkout error:', error);
+                      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+                      setError(errorMsg);
+                      setIsProcessing(false);
+                    } finally {
+                      if (!handoffToYoco) {
+                        setIsProcessing(false);
+                      }
+                    }
+                  };
+
+                  const subtotal = getTotal();
+                  const shipping = subtotal > 500000 ? 0 : 15000;
+                  const total = subtotal + shipping;
+          <div className="lg:col-span-1">
+                  if (items.length === 0) {
+                    return (
+                      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                        <div className="text-center">
+                          <h2 className="text-2xl font-bold text-slate-800 mb-2">Your cart is empty</h2>
+                          <Link to="/products" className="px-6 py-3 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700">
+                            Browse Products
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  }
+            <div className="bg-white rounded-2xl p-6 shadow-sm sticky top-4">
+              <h2 className="text-xl font-bold text-slate-900 mb-4">Order Summary</h2>
+              
+              {/* Items */}
+              <div className="space-y-3 mb-6 max-h-64 overflow-y-auto">
+                {items.map((item) => (
+                  <div key={item.id} className="flex gap-3">
+                    <div className="w-16 h-16 bg-slate-100 rounded-lg overflow-hidden shrink-0">
+                      <img src={item.imageUrl || '/logo.png'} alt={item.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">{item.name}</p>
+                      <p className="text-xs text-slate-500">Grade {item.grade} x {item.quantity}</p>
+                      <p className="text-sm font-semibold text-slate-900">
+                        R {((item.priceCents * item.quantity) / 100).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Totals */}
+              <div className="space-y-2 border-t border-slate-200 pt-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Subtotal</span>
+                  <span className="font-medium">R {(subtotal / 100).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Shipping</span>
+                  <span className="font-medium">
+                    {shipping === 0 ? 'FREE' : `R ${(shipping / 100).toLocaleString()}`}
+                  </span>
+                </div>
+                <div className="flex justify-between text-lg font-bold border-t border-slate-200 pt-2">
+                  <span>Total</span>
+                  <span className="text-blue-600">R {(total / 100).toLocaleString()}</span>
+                </div>
+                {shipping === 0 && (
+                  <p className="text-xs text-green-600">You qualified for free shipping!</p>
+                )}
+              </div>
+
+              {/* Payment Button */}
+              <button
+                onClick={handleSubmit}
+                disabled={isProcessing}
+                className="w-full mt-6 bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-5 h-5" />
+                    Pay with Yoco
+                  </>
+                )}
+              </button>
+
+              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Secure SSL Encryption</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

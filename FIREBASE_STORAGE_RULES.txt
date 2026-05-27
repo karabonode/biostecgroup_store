@@ -1,0 +1,58 @@
+FIREBASE STORAGE SETUP INSTRUCTIONS
+====================================
+
+Step 1: Enable Firebase Storage
+-------------------------------
+1. Go to Firebase Console (https://console.firebase.google.com/)
+2. Select your project: "biostecgroup"
+3. Click on "Storage" in the left sidebar
+4. Click "Get Started"
+5. Choose a location for your storage (e.g., "eur3" for Europe)
+6. Click "Done"
+
+Step 2: Update Security Rules
+-----------------------------
+Go to Storage > Rules and paste these rules:
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /laptops/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
+
+Then click "Publish".
+
+Step 3: Test Image Upload
+-------------------------
+1. Go to your admin panel: /admin
+2. Login with your credentials
+3. Go to "Inventory" tab
+4. Click "Add Product"
+5. Fill in the details
+6. Click "Click to upload image" and select an image
+7. Wait for the image to upload (you'll see "✓ Uploaded" when done)
+8. Click "Add Product" to save
+
+TROUBLESHOOTING
+===============
+
+If image upload fails:
+1. Check browser console (F12) for error messages
+2. Make sure Firebase Storage is enabled
+3. Make sure security rules are published
+4. Make sure you're logged in as admin
+5. Check that image file is less than 5MB
+6. Check that image is a valid image file (JPG, PNG, etc.)
+
+Common Errors:
+- "Firebase Storage not enabled" -> Follow Step 1 above
+- "Unauthorized" -> Check security rules in Step 2
+- "File too large" -> Use an image smaller than 5MB

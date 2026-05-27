@@ -1,0 +1,13 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Sensitive credentials — never commit
+firebase-service-account.json
+firebase-blueprint.json
+*.zip
