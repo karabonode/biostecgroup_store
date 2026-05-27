@@ -20,7 +20,7 @@ const portfolio = [
     name: 'Nature Talks Tours',
     tagline: 'Travel & Tours — Cape Town',
     url: 'https://naturetalkstours.co.za',
-    description: 'Eco-tourism booking platform for private and small-group guided tours through Cape Town and South Africa's natural wonders.',
+    description: "Eco-tourism booking platform for private and small-group guided tours through Cape Town and South Africa's natural wonders.",
     tags: ['Tourism', 'Booking', 'Business'],
     type: 'nature',
   },
@@ -276,7 +276,7 @@ export default function Dev() {
                 <a href="#get-started" className="inline-flex items-center gap-2 px-7 py-3.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20">
                   Start Your Project <ArrowRight className="w-4 h-4" />
                 </a>
-                <a href="#portfolio" className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/8 border border-white/15 text-white font-semibold rounded-xl hover:bg-white/15 transition-all backdrop-blur">
+                <a href="#portfolio" className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/10 border border-white/15 text-white font-semibold rounded-xl hover:bg-white/20 transition-all backdrop-blur">
                   See Our Work
                 </a>
               </div>
@@ -359,7 +359,7 @@ export default function Dev() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.1 }}
-                  className="group rounded-2xl border border-slate-200 overflow-hidden hover:border-slate-300 hover:shadow-2xl transition-all duration-400 flex flex-col bg-white"
+                  className="group rounded-2xl border border-slate-200 overflow-hidden hover:border-slate-300 hover:shadow-2xl transition-all duration-300 flex flex-col bg-white"
                 >
                   {/* Browser chrome */}
                   <div className="bg-slate-100 border-b border-slate-200 px-4 py-2.5 flex items-center gap-3">

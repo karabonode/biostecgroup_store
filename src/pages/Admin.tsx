@@ -193,7 +193,7 @@ function Dashboard() {
             ['Shipped', orders.shipped, 'bg-purple-50 border-purple-100 text-purple-700'],
             ['Delivered', orders.delivered, 'bg-emerald-50 border-emerald-100 text-emerald-700'],
             ['Cancelled', orders.cancelled, 'bg-red-50 border-red-100 text-red-700'],
-            ['Refunded', orders.refunded, 'bg-slate-50 border-slate-200 text-slate-600'],
+            ['Refunded', (orders as any).refunded ?? 0, 'bg-slate-50 border-slate-200 text-slate-600'],
           ] as [string, number, string][]).map(([label, count, cls]) => (
             <div key={label} className={`rounded-xl border p-3 text-center ${cls}`}>
               <p className="text-2xl font-bold">{count}</p>

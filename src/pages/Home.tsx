@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { Link, useNavigate } from 'react-router-dom';
-import { getProducts } from '../api/products';
+import { getProducts, Product as ApiProduct } from '../api/products';
 
 interface Product {
   id: string;
@@ -91,7 +91,7 @@ const socialBranches = [
 
 export default function Home() {
   const [products, setProducts]           = useState<Product[]>([]);
-  const [iphoneProducts, setIphoneProducts] = useState<Product[]>([]);
+  const [iphoneProducts, setIphoneProducts] = useState<ApiProduct[]>([]);
   const [slides, setSlides]               = useState<Slide[]>(DEFAULT_SLIDES);
   const [filter, setFilter]               = useState<'all' | 'A' | 'B'>('all');
   const [loading, setLoading]             = useState(true);
