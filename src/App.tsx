@@ -17,6 +17,7 @@ import CheckoutSuccess from './pages/CheckoutSuccess';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VerifyEmail from './pages/VerifyEmail';
+import Dev from './pages/Dev';
 import KaraboChat from './components/KaraboChat';
 
 function ScrollToTop() {
@@ -56,6 +57,7 @@ function AppShell() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/dev" element={<Dev />} />
         </Routes>
       </main>
 

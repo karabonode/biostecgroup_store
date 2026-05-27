@@ -13,6 +13,7 @@ const navLinks = [
   { label: 'Shop', href: '/', isShop: true },
   { label: 'Services', href: '/services' },
   { label: 'Repair', href: '/repair' },
+  { label: 'Dev', href: '/dev' },
   { label: 'About', href: '/about' },
   { label: 'Contact', href: '/contact' },
 ];
@@ -71,7 +72,7 @@ export default function Navbar({ onOpenCart }: NavbarProps) {
           <div className="flex items-center justify-between h-16">
 
             {/* Logo */}
-            <Link to="/" className="flex-shrink-0 flex items-center">
+            <Link to="/" className="shrink-0 flex items-center">
               <img src="/logo.png" alt="Biostec Group" className="h-10 w-auto" />
             </Link>
 
@@ -115,7 +116,7 @@ export default function Navbar({ onOpenCart }: NavbarProps) {
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       exit={{ scale: 0 }}
-                      className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-brand-accent text-white text-[10px] font-bold px-1 rounded-full leading-none"
+                      className="absolute -top-0.5 -right-0.5 min-w-4.5 h-4.5 flex items-center justify-center bg-brand-accent text-white text-[10px] font-bold px-1 rounded-full leading-none"
                     >
                       {cartCount}
                     </motion.span>
